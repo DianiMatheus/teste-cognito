@@ -32,18 +32,17 @@ def get_aws_session():
 @st.cache_resource
 def get_dynamodb_table():
     session = get_aws_session()
-    dynamodb = session.resource("dynamodb", region_name=AWS_DYNAMODB_REGION)
+    dynamodb = session.resource("dynamodb")  # sem region_name
     return dynamodb.Table(DYNAMODB_TABLE_NAME)
 
 @st.cache_resource
 def get_bedrock_client():
-    session = get_aws_session()
-    return session.client("bedrock-runtime", region_name=AWS_BEDROCK_REGION)
+    return get_aws_session().client("bedrock-runtime")
 
 @st.cache_resource
 def get_cognito_client():
-    session = get_aws_session()
-    return session.client("cognito-idp", region_name=COGNITO_REGION)
+    return get_aws_session().client("cognito-idp")
+
 
 # --- Funções de autenticação Cognito ---
 def cognito_login(username, password):
@@ -125,28 +124,6 @@ def fetch_all_by_name(name: str):
         FilterExpression=Attr("_nome_index").eq(name.upper())
     )
     return resp.get("Items", [])
-
-# Separa os JSONs com base em campos em dois tipos: POD e Externo
-def summarize_documents(name: str, only_decision: bool = None):
-    items = fetch_all_by_name(name)
-    if only_decision is True:
-        items = [item for item in items if next(iter(item), None) == "decision"]
-    elif only_decision is False:
-        items = [item for item in items if next(iter(item), None) != "decision"]
-
-    # Escolhe dinamicamente qual função usar
-    summarize_fn = agente_1_resumo_pod if only_decision else agente_2_resumo_externo
-
-    summaries = []
-    for item in items:
-        data_str = json.dumps(item, ensure_ascii=False, default=str, indent=2)
-        summary = summarize_fn(data_str)
-        summaries.append({
-            "id": item.get("id"),
-            "summary": summary
-        })
-
-    return summaries
 
 # --- AGENTE 1: Resumo JSON POD ---
 def agente_1_resumo_pod(json_data: str) -> str:
