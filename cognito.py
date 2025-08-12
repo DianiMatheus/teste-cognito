@@ -667,7 +667,7 @@ def display_main_app():
             st.session_state.person_name   = escolha
             st.session_state.documents     = fetch_all_by_name(escolha)
             st.session_state.error_message = None
-            st.session_state.chat_history  = []  # Limpa o histórico ao trocar de cliente
+            st.session_state.chat_history  = []
             st.session_state.doc_summaries = []
             st.session_state.chat_context  = None
             st.session_state.auto_summary  = None
@@ -685,31 +685,29 @@ def display_main_app():
                 with st.expander(f"Documento ID: {doc['id']}"):
                     st.json(doc)
 
-    # --- Aba 2: conversa usando resumos pré-gerados COM MEMÓRIA ---
+    # --- Aba 2: conversa usando resumos pré-gerados ---
     with tab2:
         st.subheader("💬 Conversar com Documento")
 
-        # 1) precisa ter buscado documentos
         if not st.session_state.documents:
             st.info("Busque um nome na aba 1 antes de conversar.")
         else:
-            # Verificar se há resumos gerados
             if not st.session_state.doc_summaries:
                 st.write("")
                 
-            # 2) Criar container para o histórico de mensagens
+            # Criar container para o histórico de mensagens
             chat_container = st.container()
             
-            # 3) Container para o input (sempre no final)
+            # Container para o input
             input_container = st.container()
             
-            # 4) Exibir histórico de mensagens no container do chat
+            # Exibir histórico de mensagens no container do chat
             with chat_container:
                 for msg in st.session_state.chat_history:
                     with st.chat_message(msg["role"]):
                         st.markdown(msg["content"])
             
-            # 5) Input do usuário no container separado
+            # Input do usuário no container separado
             with input_container:
                 user_q = st.chat_input("Pergunte algo sobre o cliente…")
                 
@@ -758,7 +756,7 @@ Importante:
 - Não considere documento com id sendo o nome pessoa analisada
 """
                     
-                    # Chama o Agente 3 COM MEMÓRIA e armazena resposta
+                    # Chama o Agente 3 e armazena resposta
                     with st.spinner("Analisando e respondendo…"):
                         try:
                             answer = agente_3_chat_with_memory(system_prompt, st.session_state.chat_history)
@@ -767,8 +765,6 @@ Importante:
                     
                     # Adiciona a resposta ao histórico
                     st.session_state.chat_history.append({"role": "assistant", "content": answer})
-                    
-                    # Rerun para atualizar a interface
                     st.rerun()
 
     # --- Aba 3: gerar e mostrar resumos individuais e histórico usando os resumos dos agentes ---
@@ -777,11 +773,10 @@ Importante:
         if not st.session_state.documents:
             st.info("Busque um nome na aba 1 antes de gerar o resumo.")
         else:
-            # só gera uma vez
             if st.session_state.auto_summary is None:
                 if st.button("Gerar Resumo Histórico", key="gen_summary"):
                     with st.spinner("Gerando resumo..."):
-                        # 1) Se não há resumos ainda, gera usando os agentes 1 e 2
+                        # Se não há resumos ainda, gera usando os agentes 1 e 2
                         start_time = time.time()
                         if not st.session_state.doc_summaries:
                             summaries, external_jsons = summarize_documents_combined(
@@ -805,7 +800,7 @@ Importante:
                             )
                             st.session_state.chat_context = ctx
 
-                        # 2) Usa o Agente 3 com os resumos processados pelos agentes 1 e 2
+                        # Usa o Agente 3 com os resumos processados pelos agentes 1 e 2
                         st.session_state.auto_summary = agente_3_resumo_automatico(
                             name=st.session_state.person_name,
                             pod_summaries=st.session_state.doc_summaries,
