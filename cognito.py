@@ -2,21 +2,18 @@
 import streamlit as st
 import boto3
 import json
-from decimal import Decimal
 from boto3.dynamodb.conditions import Attr
 import time
 from botocore.exceptions import ClientError
 
 # --- Configurações AWS DynamoDB ---
-AWS_DYNAMODB_REGION = "us-east-1"
 DYNAMODB_TABLE_NAME = "pod-jsonresponse"
 
 # --- Configurações AWS Bedrock ---
-AWS_BEDROCK_REGION = "us-east-1"
 MODEL_HAIKU = 'us.anthropic.claude-3-5-haiku-20241022-v1:0'
+MODEL_HAIKU_2 = 'us.anthropic.claude-3-haiku-20240307-v1:0'
 
 # --- Configurações AWS Cognito ---
-COGNITO_REGION = "us-east-1"
 COGNITO_APP_CLIENT_ID = "7qvtg7i81gqcnoh18f78m58q31"
 
 # --- Inicialização de clientes ---
@@ -32,7 +29,7 @@ def get_aws_session():
 @st.cache_resource
 def get_dynamodb_table():
     session = get_aws_session()
-    dynamodb = session.resource("dynamodb")  # sem region_name
+    dynamodb = session.resource("dynamodb")
     return dynamodb.Table(DYNAMODB_TABLE_NAME)
 
 @st.cache_resource
@@ -172,7 +169,7 @@ Não inclua nenhum texto fora do JSON.
         "temperature": 0.4
     })
     resp = client.invoke_model(
-        modelId='us.anthropic.claude-3-haiku-20240307-v1:0',
+        modelId=MODEL_HAIKU_2,
         body=body,
         contentType="application/json",
         accept="application/json"
@@ -245,7 +242,7 @@ Não inclua nenhum texto fora do JSON.
         "temperature": 0.4
     })
     resp = client.invoke_model(
-        modelId='us.anthropic.claude-3-haiku-20240307-v1:0',
+        modelId=MODEL_HAIKU_2,
         body=body,
         contentType="application/json",
         accept="application/json"
@@ -531,12 +528,10 @@ def init_session_state():
         st.session_state.username = ""
     if "auth_error" not in st.session_state:
         st.session_state.auth_error = None
-
     if "cognito_challenge" not in st.session_state:
         st.session_state.cognito_challenge = None
     if "tokens" not in st.session_state:
         st.session_state.tokens = None
-
     if "person_name" not in st.session_state:
         st.session_state.person_name = ""
     if "documents" not in st.session_state:
@@ -826,8 +821,6 @@ Importante:
                         duration = end_time - start_time
                         print(duration)
                         st.rerun()
-                                            # ---- FIM DA MEDIÇÃO E IMPRESSÃO NO TERMINAL ----
-
 
             # exibe o resumo completo
             if st.session_state.auto_summary:
