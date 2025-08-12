@@ -281,7 +281,7 @@ def initialize_vectorstore():
             client=get_bedrock_client()
         )
 
-        vs_dir = "vectorstore_faiss"  # novo nome
+        vs_dir = "vectorstore_faiss"
 
         if os.path.isdir(vs_dir):
             vectorstore = FAISS.load_local(
@@ -297,6 +297,7 @@ def initialize_vectorstore():
         st.error(f"Erro ao inicializar vectorstore (FAISS): {e}")
         return None
 
+# busca para obter a descrição da persona
 def get_persona_description_semantic(persona: str) -> str:
     if not persona:
         return "Descrição indisponível"
@@ -322,7 +323,7 @@ def get_persona_description_semantic(persona: str) -> str:
 def summarize_documents_combined(name: str):
     # Busca todos os documentos
     items = fetch_all_by_name(name)
-    summaries = []
+    summaries = [] # Para armazenar os resumos dos documentos POD
     external_jsons = []  # Para armazenar JSONs dos documentos externos
     
     for item in items:
@@ -334,7 +335,6 @@ def summarize_documents_combined(name: str):
             # Usa Agente 1 para documentos POD
             summary_json_str = agente_1_resumo_pod(json_str)
             try:
-                # Tenta fazer parse do JSON retornado
                 summary_json = json.loads(summary_json_str)
                 summaries.append({
                     "id": item["id"],
@@ -343,17 +343,15 @@ def summarize_documents_combined(name: str):
                     "type": "POD"
                 })
             except json.JSONDecodeError:
-                # Se não conseguir fazer parse, trata como texto
                 summaries.append({
                     "id": item["id"],
                     "summary": summary_json_str,
                     "type": "POD"
                 })
         else:
-            # Usa Agente 2 para documentos externos (retorna JSON)
+            # Usa Agente 2 para documentos externos
             summary_json_str = agente_2_resumo_externo(json_str)
             try:
-                # Tenta fazer parse do JSON retornado
                 summary_json = json.loads(summary_json_str)
                 summaries.append({
                     "id": item["id"],
@@ -363,7 +361,6 @@ def summarize_documents_combined(name: str):
                 })
                 external_jsons.append(summary_json)
             except json.JSONDecodeError:
-                # Se não conseguir fazer parse, trata como texto
                 summaries.append({
                     "id": item["id"],
                     "summary": summary_json_str,
@@ -404,7 +401,6 @@ def agente_3_chat_with_memory(system_prompt: str, user_query: list) -> str:
 
 # Agente 3: Resumo automático usando os resumos dos agentes 1 e 2
 def agente_3_resumo_automatico(name: str, pod_summaries: list, external_summaries: list, persona_desc: str = "") -> str:
-    # Separa os resumos POD (agente 1) e externos (agente 2)
     pod_resumos = []
     external_resumos = []
     
@@ -419,7 +415,6 @@ def agente_3_resumo_automatico(name: str, pod_summaries: list, external_summarie
     
     for summary in external_summaries:
         if summary.get("type") == "Externo" and "json_data" in summary:
-            # Cria um novo objeto com o ID e o conteúdo do resumo
             summary_with_id = {
                 "document_id": summary.get("id"),
                 "summary_content": summary.get("json_data")
