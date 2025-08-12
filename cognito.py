@@ -18,6 +18,7 @@ MODEL_HAIKU = 'us.anthropic.claude-3-5-haiku-20241022-v1:0'
 # --- Configurações AWS Cognito ---
 COGNITO_REGION = "us-east-1"
 COGNITO_APP_CLIENT_ID = "7qvtg7i81gqcnoh18f78m58q31"
+
 # --- Inicialização de clientes ---
 @st.cache_resource
 def get_aws_session():
@@ -44,11 +45,8 @@ def get_cognito_client():
     session = get_aws_session()
     return session.client("cognito-idp", region_name=COGNITO_REGION)
 
+# --- Funções de autenticação Cognito ---
 def cognito_login(username, password):
-    """
-    1º passo do login. Se a senha for temporária, Cognito retorna o
-    desafio NEW_PASSWORD_REQUIRED. Guardamos 'Session' para o próximo passo.
-    """
     client = get_cognito_client()
     try:
         resp = client.initiate_auth(
@@ -56,7 +54,7 @@ def cognito_login(username, password):
             AuthFlow="USER_PASSWORD_AUTH",
             AuthParameters={"USERNAME": username, "PASSWORD": password},
         )
-        # Desafio do 1º login (senha temporária)
+        
         if resp.get("ChallengeName") == "NEW_PASSWORD_REQUIRED":
             st.session_state.cognito_challenge = {
                 "type": "NEW_PASSWORD_REQUIRED",
@@ -64,9 +62,8 @@ def cognito_login(username, password):
                 "username": username,
             }
             st.session_state.authenticated = False
-            return "CHALLENGE", None  # sinaliza que precisa trocar a senha
+            return "CHALLENGE", None
 
-        # Login normal
         tokens = resp["AuthenticationResult"]
         st.session_state.authenticated = True
         st.session_state.username = username
@@ -82,10 +79,8 @@ def cognito_login(username, password):
         st.session_state.auth_error = f"{code}: {msg}"
         return False, st.session_state.auth_error
 
+# Redefinir a senha no primeiro login
 def cognito_complete_new_password(new_password: str):
-    """
-    2º passo do login — responde ao NEW_PASSWORD_REQUIRED com a nova senha.
-    """
     challenge = st.session_state.cognito_challenge
     if not challenge or challenge.get("type") != "NEW_PASSWORD_REQUIRED":
         return False, "Nenhum desafio pendente."
@@ -99,7 +94,6 @@ def cognito_complete_new_password(new_password: str):
             ChallengeResponses={
                 "USERNAME": challenge["username"],
                 "NEW_PASSWORD": new_password
-                # inclua-os aqui conforme 'requiredAttributes'.
             },
         )
         tokens = resp["AuthenticationResult"]
@@ -115,15 +109,7 @@ def cognito_complete_new_password(new_password: str):
         msg  = e.response["Error"].get("Message", "")
         return False, f"{code}: {msg}"
 
-
-
 # --- Helpers DynamoDB ---
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, Decimal):
-            return float(o)
-        return super().default(o)
-
 def fetch_all_names():
     table = get_dynamodb_table()
     resp = table.scan(
@@ -140,10 +126,9 @@ def fetch_all_by_name(name: str):
     )
     return resp.get("Items", [])
 
+# Separa os JSONs com base em campos em dois tipos: POD e Externo
 def summarize_documents(name: str, only_decision: bool = None):
     items = fetch_all_by_name(name)
-
-    # Filtra pelo primeiro campo se for o caso
     if only_decision is True:
         items = [item for item in items if next(iter(item), None) == "decision"]
     elif only_decision is False:
@@ -218,12 +203,10 @@ Não inclua nenhum texto fora do JSON.
     resp_body = json.loads(resp["body"].read())
     text = resp_body["content"][0]["text"].strip()
     
-    # Tenta fazer parse do JSON retornado
     try:
-        json.loads(text)  # Valida se é JSON válido
+        json.loads(text)
         return text
     except json.JSONDecodeError:
-        # Se não conseguir fazer parse, retorna um JSON de erro
         error_json = {
             "erro": "Falha ao processar resposta do agente",
             "resposta_original": text
@@ -293,17 +276,14 @@ Não inclua nenhum texto fora do JSON.
     resp_body = json.loads(resp["body"].read())
     text = resp_body["content"][0]["text"].strip()
 
-    # Tenta fazer parse do JSON retornado
     try:
         data = json.loads(text)
-        # Adiciona as chaves desejadas se não estiverem presentes
         if "data_da_analise" not in data:
             data["data_da_analise"] = None
         if "status_de_decisao" not in data:
             data["status_de_decisao"] = None
         return json.dumps(data, ensure_ascii=False)
     except json.JSONDecodeError:
-        # Se não conseguir fazer parse, retorna um JSON de erro
         error_json = {
             "erro": "Falha ao processar resposta do agente",
             "resposta_original": text,
@@ -312,29 +292,9 @@ Não inclua nenhum texto fora do JSON.
         }
         return json.dumps(error_json, ensure_ascii=False)
 
-def formatar_summaries(name: str, summaries: list[dict]) -> str:
-    linhas = []
-    linhas.append(f"{len(summaries)} documentos resumidos para {name}.")
-    for idx, s in enumerate(summaries):
-        linhas.append("")  # linha em branco
-        linhas.append(f"--- Resumo (ID: {s['id']}) ---")
-        # Tenta fazer parse do JSON para exibição formatada
-        try:
-            summary_json = json.loads(s['summary'])
-            linhas.append(json.dumps(summary_json, ensure_ascii=False, indent=2))
-        except json.JSONDecodeError:
-            linhas.append(s['summary'])
-    return "\n".join(linhas)
-
-def formatar_summaries_externo(name: str, summaries: list[dict]) -> str:
-    linhas = []
-    for idx, s in enumerate(summaries):
-        linhas.append(s['summary'])
-    return "\n".join(linhas)
-
 # --- Função para busca semântica usando embeddings ---
 
-# Inicialização do vectorstore (fazer apenas uma vez)
+# Inicialização do vectorstore
 @st.cache_resource
 def initialize_vectorstore():
     try:
@@ -350,7 +310,6 @@ def initialize_vectorstore():
         vs_dir = "vectorstore_faiss"  # novo nome
 
         if os.path.isdir(vs_dir):
-            # allow_dangerous_deserialization é necessário pq o FAISS salva metadados via pickle
             vectorstore = FAISS.load_local(
                 vs_dir,
                 embeddings,
