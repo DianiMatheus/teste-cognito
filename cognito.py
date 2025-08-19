@@ -5,6 +5,9 @@ import json
 from boto3.dynamodb.conditions import Attr
 import time
 from botocore.exceptions import ClientError
+import os
+from langchain_aws import BedrockEmbeddings
+from langchain_community.vectorstores import FAISS
 
 # --- Configurações AWS DynamoDB ---
 DYNAMODB_TABLE_NAME = "pod-jsonresponse"
@@ -272,10 +275,6 @@ Não inclua nenhum texto fora do JSON.
 @st.cache_resource
 def initialize_vectorstore():
     try:
-        import os
-        from langchain_aws import BedrockEmbeddings
-        from langchain_community.vectorstores import FAISS
-
         embeddings = BedrockEmbeddings(
             model_id="amazon.titan-embed-text-v2:0",
             client=get_bedrock_client()
